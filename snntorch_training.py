@@ -12,6 +12,8 @@ import snntorch.functional as SF
 import numpy as np
 import os
 
+# script to create SNN and train using pytorch/snntorch
+
 def load_batch(filename):
     print(f"Loading {filename}...")
 
@@ -93,23 +95,23 @@ class GasSensorSNN(nn.Module):
 
         x_norm = x / 3.0
 
-        # 3. "Fake" Quantize weights during forward pass
-        #    This forces the network to learn weights that work well when clamped.
-        #    We use tanh to squash weights between -1 and 1.
+        # "Fake" quantize weights during forward pass
+        # forces the network to learn weights that work well when clamped.
+        # use tanh to squash weights between -1 and 1.
         w1_fake = torch.tanh(self.fc1.weight)
         w2_fake = torch.tanh(self.fc2.weight)
 
-        # Initialize hidden states 
+        # initialize hidden states 
         mem1 = self.lif1.init_leaky()
         mem2 = self.lif2.init_leaky()
         
-        # Record the final layer spikes
+        # record the final layer spikes
         spk2_rec = []
         
         # Time Loop
         for step in range(num_steps):
             # Layer 1
-            # cur1 = self.fc1(x) # Input x is constant (Direct Encoding)
+            # cur1 = self.fc1(x)
             cur1 = nn.functional.linear(x_norm, w1_fake)
             spk1, mem1 = self.lif1(cur1, mem1)
             
@@ -158,6 +160,7 @@ if __name__ == "__main__":
             
             # Accuracy Tracking
             epoch_loss += loss_val.item()
+
             # Sum spikes over time to get prediction index
             predicted = spk_rec.sum(dim=0).argmax(1)
             correct += (predicted == targets).sum().item()
@@ -165,6 +168,7 @@ if __name__ == "__main__":
         
         print(f"Epoch {epoch+1}/{epochs} | Loss: {epoch_loss/len(train_loader):.4f} | Acc: {100*correct/total:.2f}%")
 
+        # evaluate model
         model.eval()
         correct = 0
         total = 0
@@ -179,7 +183,7 @@ if __name__ == "__main__":
         acc = 100 * correct / total
         print(f"Epoch {epoch+1}/{epochs} | Test Acc: {acc:.2f}%")
 
-        # --- SAVE ONLY IF IT IMPROVES ---
+        # SAVE ONLY IF IT IMPROVES 
         if acc > best_acc:
             best_acc = acc
             print(f"--> New Best Model! Saving... ({best_acc:.2f}%)")
@@ -192,8 +196,7 @@ if __name__ == "__main__":
             w1_int8 = (torch.tanh(w1) * 127).round().numpy().astype(np.int8).T
             w2_int8 = (torch.tanh(w2) * 127).round().numpy().astype(np.int8).T
             
-            # np.save("weights_fc1_int8.npy", w1_int8)
-            # np.save("weights_fc2_int8.npy", w2_int8)
-            # torch.save(model.state_dict(), "best_model.pth")
+            np.save("weights_fc1_int8.npy", w1_int8)
+            np.save("weights_fc2_int8.npy", w2_int8)
             
     print(f"Training Complete. Best Accuracy achieved: {best_acc:.2f}%")

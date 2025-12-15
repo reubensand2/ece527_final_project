@@ -1,7 +1,7 @@
 import numpy as np
 
+# Creates the data file for the c-sim testbench
 
-# --- LOAD RESOURCES ---
 # test data from split
 X_test_raw = np.load("X_test_raw.npy") 
 y_test = np.load("y_test.npy")
@@ -14,7 +14,7 @@ w2 = np.load("weights_fc2_int8.npy").astype(np.int8)
 mean = np.load("scaler_mean.npy")
 scale = np.load("scaler_scale.npy")
 
-# --- LOAD & QUANTIZE INPUT ---
+# LOAD & QUANTIZE INPUT
 def get_quantized_samples(raw_data):
     # 1. Standard Scaler
     x_norm = (raw_data - mean) / (scale + 1e-10)
@@ -25,17 +25,15 @@ def get_quantized_samples(raw_data):
     
     return x_int8
 
-# quanitize inputs
 X_test_int8 = get_quantized_samples(X_test_raw)
 num_samples = len(y_test)
 
-# --- GENERATE C HEADER ---
+# GENERATE C HEADER
 with open("tb_data.h", "w") as f:
     f.write("#ifndef TB_DATA_H\n#define TB_DATA_H\n\n")
     f.write("#include \"ap_int.h\"\n\n")
 
-    # 1. FLATTENED WEIGHTS (For m_axi simulation)
-    # Concatenate W1 and W2 into one massive array
+    # FLATTENED WEIGHTS
     weights_flat = np.concatenate([w1.flatten(), w2.flatten()])
     f.write(f"// Total Weights: {len(weights_flat)}\n")
     f.write("const ap_int<8> TB_WEIGHTS[] = {\n    ")
@@ -44,14 +42,14 @@ with open("tb_data.h", "w") as f:
         if (i+1) % 16 == 0: f.write("\n    ")
     f.write("\n};\n\n")
 
-    # 2. INPUT SAMPLES
+    # INPUT SAMPLES
     f.write(f"// {num_samples} Test Samples from Batch 1\n")
     f.write(f"const ap_int<8> TB_INPUTS[{num_samples}][128] = {{\n")
     for row in X_test_int8:
         f.write("    {" + ", ".join(map(str, row)) + "},\n")
     f.write("};\n\n")
 
-    # 3. EXPECTED LABELS
+    # EXPECTED LABELS
     f.write("const int TB_LABELS[] = {" + ", ".join(map(str, y_test)) + "};\n\n")
     
     f.write("#endif")
